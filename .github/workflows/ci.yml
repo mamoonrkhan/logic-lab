@@ -20,6 +20,8 @@ jobs:
         run: make
       - name: Test
         run: make test
+      - name: Test the visualizer engine
+        run: make test-viz
       - name: Build with AddressSanitizer + UBSan
         run: make debug
       - name: Fuzz the sanitizer build

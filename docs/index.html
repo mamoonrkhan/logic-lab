@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CDCL visualizer · logic-lab</title>
+  <meta name="description" content="Step through a conflict-driven clause learning SAT solver: decisions, unit propagation, the implication graph, first-UIP conflict analysis and backjumping.">
+  <link rel="stylesheet" href="visualizer/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">⊨</span>
+      <div>
+        <h1>CDCL, step by step</h1>
+        <p>How a modern SAT solver decides, propagates, learns from conflicts and backjumps.</p>
+      </div>
+    </div>
+    <a class="repo" href="https://github.com/mamoonrkhan/logic-lab">logic-lab on GitHub →</a>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card">
+        <h2>Formula</h2>
+        <label class="field">
+          <span>Example</span>
+          <select id="example"></select>
+        </label>
+        <p id="blurb" class="muted"></p>
+
+        <div id="random-controls" class="random" hidden>
+          <label class="field"><span>Variables</span><input id="rand-n" type="number" min="3" max="40" value="12"></label>
+          <label class="field"><span>Clauses</span><input id="rand-m" type="number" min="1" max="300" value="51"></label>
+          <label class="field"><span>Seed</span><input id="rand-seed" type="number" min="1" value="1"></label>
+          <button id="rand-go" class="btn">Generate</button>
+        </div>
+
+        <details id="dimacs-box">
+          <summary>DIMACS source</summary>
+          <textarea id="dimacs" spellcheck="false" rows="12" aria-label="Formula in DIMACS CNF format"></textarea>
+          <p class="muted small">Name variables with <code>c var 3 rain</code> lines.</p>
+          <button id="solve" class="btn primary">Solve this formula</button>
+        </details>
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section class="card">
+        <h2>Legend</h2>
+        <ul class="legend">
+          <li><span class="lit t">x</span> true</li>
+          <li><span class="lit f">x</span> false</li>
+          <li><span class="lit u">x</span> unassigned</li>
+          <li><span class="swatch decision"></span> decision</li>
+          <li><span class="swatch implied"></span> implied by a clause</li>
+          <li><span class="swatch conflict"></span> conflict</li>
+          <li><span class="swatch cut"></span> in the clause being analyzed</li>
+          <li><span class="swatch uip"></span> first UIP</li>
+        </ul>
+        <p class="muted small">Keys: <kbd>←</kbd> <kbd>→</kbd> step, <kbd>space</kbd> play, <kbd>C</kbd> next conflict.</p>
+      </section>
+
+      <section class="card">
+        <h2>The algorithm</h2>
+        <ol class="steps">
+          <li><b>Decide</b>: guess a value for an unassigned variable.</li>
+          <li><b>Propagate</b>: a clause with one unassigned literal left and the rest false forces that literal.</li>
+          <li><b>Conflict</b>: some clause has every literal false.</li>
+          <li><b>Analyze</b>: resolve the conflict clause with the clauses that forced its literals, until one literal from the current level remains.</li>
+          <li><b>Learn and backjump</b>: add that clause, undo to the level where it becomes unit, and continue.</li>
+        </ol>
+      </section>
+    </aside>
+
+    <section class="stage">
+      <div class="controls card" role="toolbar" aria-label="Playback">
+        <div class="buttons">
+          <button id="first" class="icon" title="Start (Home)" aria-label="Go to start">⏮</button>
+          <button id="prev" class="icon" title="Previous step (←)" aria-label="Previous step">◀</button>
+          <button id="play" class="icon play" title="Play / pause (space)" aria-label="Play">▶</button>
+          <button id="next" class="icon" title="Next step (→)" aria-label="Next step">▶︎|</button>
+          <button id="next-conflict" class="btn" title="Next conflict (C)">Next conflict</button>
+          <button id="last" class="icon" title="End (End)" aria-label="Go to end">⏭</button>
+        </div>
+        <input id="scrub" type="range" min="0" value="0" aria-label="Step">
+        <label class="speed">Speed
+          <select id="speed">
+            <option value="1">1 step/s</option>
+            <option value="2" selected>2 steps/s</option>
+            <option value="5">5 steps/s</option>
+            <option value="12">12 steps/s</option>
+            <option value="40">40 steps/s</option>
+          </select>
+        </label>
+        <div id="counter" class="counter"></div>
+      </div>
+
+      <div id="narrative" class="narrative card" aria-live="polite"></div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="panels">
+        <section class="card panel">
+          <div class="panel-head">
+            <h2>Implication graph</h2>
+            <span class="muted small">rows are decision levels; arrows point from the literals that forced an assignment</span>
+          </div>
+          <div class="graph-scroll"><svg id="graph" role="img" aria-label="Implication graph"></svg></div>
+        </section>
+        <section class="card panel">
+          <div class="panel-head"><h2>Conflict analysis</h2><span class="muted small">most recent conflict</span></div>
+          <div id="analysis"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="panel-head">
+          <h2>Clauses</h2>
+          <label class="small"><input type="checkbox" id="hide-sat"> hide satisfied</label>
+        </div>
+        <div id="clauses" class="clause-grid"></div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer muted small">
+    The engine here is a small JavaScript port of <a href="https://github.com/mamoonrkhan/logic-lab/blob/main/src/cdcl.cpp">the C++ solver</a>
+    built for clarity (it scans clauses instead of using watched literals). It is tested against the C++ solver on thousands of random formulas.
+  </footer>
+
+  <script src="visualizer/cdcl.js"></script>
+  <script src="visualizer/app.js"></script>
+</body>
+</html>

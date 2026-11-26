@@ -19,6 +19,26 @@ That output is a proof that the Grötzsch graph has chromatic number 4. The 4-co
 is checked directly. The claim that no 3-coloring exists comes with a DRAT proof, and
 an independent checker verifies it without trusting the solver.
 
+## Interactive visualizer
+
+**[Try it in your browser →](https://mamoonrkhan.github.io/logic-lab/)**
+
+[![CDCL visualizer showing first-UIP conflict analysis](docs/visualizer.png)](https://mamoonrkhan.github.io/logic-lab/)
+
+Step forward or backward through a solver run on a small formula. The page shows:
+- each decision and unit propagation
+- the implication graph, with one row per decision level
+- every resolution step of conflict analysis, up to the first UIP
+- the learned clause and the backjump it causes
+
+Examples include 4-Queens, graph coloring, the pigeonhole principle and random 3-SAT,
+or you can paste your own DIMACS formula. The page runs a small JavaScript port of the
+solver ([docs/visualizer/cdcl.js](docs/visualizer/cdcl.js)). It is written for
+readability and checked against the C++ solver by `make test-viz`. Links to a specific
+step work too, for example
+[`#example=learn&step=41`](https://mamoonrkhan.github.io/logic-lab/#example=learn&step=41)
+opens a three-level backjump.
+
 ## Why SAT?
 
 The question is: given a propositional formula, is there an assignment of true/false
@@ -47,6 +67,9 @@ working.
 **Encoders**, each turning a problem into CNF: Sudoku, N-Queens, the pigeonhole
 principle, and graph coloring / chromatic number ([tools/](tools/)).
 
+**Visualizer**: a step-by-step, in-browser replay of the algorithm with the
+implication graph and resolution derivations ([docs/](docs/)).
+
 **Verification**
 - An independent proof checker in about 100 lines of Python
   ([tools/drat_check.py](tools/drat_check.py)).
@@ -64,6 +87,7 @@ Needs a C++17 compiler and Python 3.9+. There are no other dependencies.
 ```sh
 make                 # builds build/logiclab
 make test            # differential fuzzing + proof checking + encoder tests
+make test-viz        # checks the visualizer's JS engine against the C++ solver (Node.js)
 make bench           # reruns the experiments below (30–60 minutes)
 
 ./build/logiclab --stats examples/php-8-7.cnf
@@ -204,7 +228,7 @@ tools/      encoders (sudoku, nqueens, coloring, pigeonhole), proof checker, hel
 tests/      differential fuzzer and regression tests
 bench/      experiments; results in bench/RESULTS.md
 examples/   small DIMACS files with known answers
-docs/       generated charts
+docs/       the web visualizer (served by GitHub Pages) and generated charts
 ```
 
 ## References

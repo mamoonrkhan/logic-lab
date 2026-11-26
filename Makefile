@@ -5,7 +5,7 @@ DBGFLAGS  = -std=c++17 -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-om
 SRC = src/cnf.cpp src/cdcl.cpp src/reference.cpp src/main.cpp
 HDR = $(wildcard src/*.hpp)
 
-.PHONY: all debug test fuzz bench clean
+.PHONY: all debug test test-viz fuzz bench clean
 
 all: build/logiclab
 
@@ -21,6 +21,10 @@ debug: build/logiclab-debug
 
 test: build/logiclab
 	python3 tests/run_tests.py
+
+# The visualizer's JavaScript engine, checked against the C++ solver (needs Node.js).
+test-viz: build/logiclab
+	node tests/visualizer_test.js 1000
 
 # Long fuzzing run against the sanitizer build.
 fuzz: build/logiclab-debug
