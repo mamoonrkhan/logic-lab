@@ -134,9 +134,8 @@ current line of search isn't going anywhere, and it restarts. It also skips a pl
 restart when it has unusually many variables set, because it might be close to a
 solution.
 
-Compared with Luby, that's 2 to 2.5 times faster on the structured problems and on
-random formulas, and on the hardest random sizes it more than halved the time (2.6 s to
-1.1 s per formula at n=250). Not restarting at all is still fastest on pigeonhole and
+Compared with Luby, that's about 2 times faster on the pigeonhole and Mycielski
+problems and about 1.3 times faster on random formulas. Not restarting at all is still fastest on pigeonhole and
 Mycielski. Those formulas are crafted to be hard in a very uniform way, so throwing away
 progress never pays off. I also tried 36 real-world instances from
 [SATLIB](https://www.cs.ubc.ca/~hoos/SATLIB/): hardware model checking, circuit testing
