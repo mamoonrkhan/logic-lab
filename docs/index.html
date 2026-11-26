@@ -3,60 +3,56 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Watching a SAT solver think · logic-lab</title>
+  <title>CDCL step by step · logic-lab</title>
   <meta name="description" content="Step through a SAT solver as it guesses, propagates, hits conflicts, learns new clauses and backjumps.">
   <link rel="stylesheet" href="visualizer/style.css">
 </head>
 <body>
-  <header class="intro">
-    <p class="kicker"><a href="https://github.com/mamoonrkhan/logic-lab">logic-lab</a> / visualizer</p>
-    <h1>Watching a SAT solver think</h1>
-    <p>
-      A SAT solver takes a pile of <i>or</i>-clauses and tries to make every one of them true at once.
-      This page replays one solving step by step. Most steps are boring: the solver
-      guesses a value, and then the clauses force a few more. The interesting moment is a
-      <span class="mark-conflict">conflict</span>. The solver traces the conflict back to the
-      guesses that caused it, writes down a new clause so it never repeats that mistake, and
-      jumps back past every guess that wasn't to blame.
-    </p>
-    <p class="hint">Use <kbd>→</kbd> to step, <kbd>space</kbd> to play, <kbd>c</kbd> to skip to the next conflict.</p>
-  </header>
-
   <main>
-    <section class="toolbar" aria-label="Formula and playback">
+    <h1>CDCL step by step</h1>
+    <p class="sub">
+      A replay of my SAT solver on small formulas. Code is on <a href="https://github.com/mamoonrkhan/logic-lab">GitHub</a>.
+    </p>
+
+    <p>
+      A SAT solver is given a list of clauses (each one is an "or" of some variables, possibly negated) and
+      looks for true/false values that make all of them true. This page goes through one run a step at a time.
+      The solver guesses a value, works out what that guess forces, and repeats. When some clause ends up with
+      every literal false, it works out which guesses caused that, adds a new clause that rules them out, and
+      backs up.
+    </p>
+
+    <div class="controls">
       <div class="row">
-        <label class="inline">Formula
-          <select id="example"></select>
-        </label>
+        <label>Formula <select id="example"></select></label>
         <button id="edit-toggle" class="link" aria-expanded="false" aria-controls="editor">edit / paste your own</button>
       </div>
-      <p id="blurb" class="blurb"></p>
+      <p id="blurb" class="note"></p>
 
-      <div id="random-controls" class="row random" hidden>
-        <label class="inline">variables <input id="rand-n" type="number" min="3" max="40" value="12"></label>
-        <label class="inline">clauses <input id="rand-m" type="number" min="1" max="300" value="51"></label>
-        <label class="inline">seed <input id="rand-seed" type="number" min="1" value="1"></label>
+      <div id="random-controls" class="row" hidden>
+        <label>variables <input id="rand-n" type="number" min="3" max="40" value="12"></label>
+        <label>clauses <input id="rand-m" type="number" min="1" max="300" value="51"></label>
+        <label>seed <input id="rand-seed" type="number" min="1" value="1"></label>
         <button id="rand-go">Generate</button>
       </div>
 
-      <div id="editor" class="editor" hidden>
+      <div id="editor" hidden>
         <textarea id="dimacs" spellcheck="false" rows="10" aria-label="Formula in DIMACS CNF format"></textarea>
         <div class="row">
           <button id="solve">Run this formula</button>
           <span class="note">DIMACS format: one clause per line, ending in 0. Name a variable with a line like <code>c var 3 rain</code>.</span>
         </div>
       </div>
-      <p id="error" class="error" role="alert" hidden></p>
+      <p id="error" class="error" hidden></p>
 
-      <div class="row playback" role="toolbar" aria-label="Playback">
-        <button id="first" class="quiet" title="Home">start</button>
-        <button id="prev" title="Left arrow">← back</button>
-        <button id="play" class="primary" title="Space">play</button>
-        <button id="next" title="Right arrow">step →</button>
-        <button id="next-conflict" title="C">next conflict</button>
-        <button id="last" class="quiet" title="End">end</button>
-        <input id="scrub" type="range" min="0" value="0" aria-label="Step">
-        <label class="inline speed">speed
+      <div class="row" role="toolbar" aria-label="Playback">
+        <button id="first" title="Home">Start</button>
+        <button id="prev" title="Left arrow">← Back</button>
+        <button id="play" title="Space">Play</button>
+        <button id="next" title="Right arrow">Step →</button>
+        <button id="next-conflict" title="C">Next conflict</button>
+        <button id="last" title="End">End</button>
+        <label>speed
           <select id="speed">
             <option value="1">slow</option>
             <option value="2" selected>normal</option>
@@ -65,48 +61,50 @@
           </select>
         </label>
       </div>
-    </section>
+      <input id="scrub" type="range" min="0" value="0" aria-label="Step">
+      <p class="note">Keyboard: ← and → to step, space to play, c for the next conflict.</p>
+    </div>
 
-    <section class="now" aria-live="polite">
+    <div class="now" aria-live="polite">
       <p class="where" id="where"></p>
-      <div id="narrative" class="narrative"></div>
-    </section>
+      <div id="narrative"></div>
+    </div>
 
     <div class="split">
-      <section class="graph-wrap">
+      <section>
         <h2>Implication graph</h2>
-        <p class="caption">
-          One row per guess (a "decision level"). Thick outline = a guess. Arrows run from the values that
-          forced an assignment. <span class="mark-cut">Highlighted</span> nodes are the ones in the clause being built.
-          <span class="mark-uip">Gold</span> is where the analysis stops (the first UIP).
+        <p class="note">
+          One row per decision level. Thick blue outline = a guess. Arrows go from the values that forced an
+          assignment. Yellow = in the clause being built during conflict analysis; dark yellow = the first UIP,
+          where analysis stops.
         </p>
         <div class="graph-scroll"><svg id="graph" role="img" aria-label="Implication graph"></svg></div>
       </section>
-      <section class="analysis-wrap">
-        <h2>Working out the conflict</h2>
+      <section>
+        <h2>Conflict analysis</h2>
         <div id="analysis"></div>
       </section>
     </div>
 
-    <section class="clauses-wrap">
+    <section>
       <div class="row between">
         <h2>Clauses</h2>
-        <label class="inline small"><input type="checkbox" id="hide-sat"> hide the ones already satisfied</label>
+        <label class="note"><input type="checkbox" id="hide-sat"> hide satisfied clauses</label>
       </div>
-      <p class="caption">
-        <span class="lit t">green</span> = true, <span class="lit f">red</span> = false, <span class="lit u">grey</span> = not set yet.
-        Clauses the solver learned (L1, L2, …) are listed first.
+      <p class="note">
+        <span class="lit t">green</span> true, <span class="lit f">red</span> false, <span class="lit u">grey</span> not set yet.
+        Learned clauses (L1, L2, …) are listed first.
       </p>
       <div id="clauses" class="clause-grid"></div>
     </section>
-  </main>
 
-  <footer>
-    <p>
-      This page runs a small JavaScript copy of the <a href="https://github.com/mamoonrkhan/logic-lab/blob/main/src/cdcl.cpp">C++ solver</a>,
-      written to be easy to follow rather than fast. The tests check it against the real solver on a thousand random formulas.
+    <hr>
+    <p class="note">
+      This page runs a small JavaScript copy of the <a href="https://github.com/mamoonrkhan/logic-lab/blob/main/src/cdcl.cpp">C++ solver</a>.
+      It's written to be easy to follow rather than fast (it scans every clause instead of using watched literals),
+      and it's tested against the C++ solver on a thousand random formulas.
     </p>
-  </footer>
+  </main>
 
   <script src="visualizer/cdcl.js"></script>
   <script src="visualizer/app.js"></script>

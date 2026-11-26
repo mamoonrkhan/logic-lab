@@ -79,7 +79,7 @@
         if (f.asserting) {
           return `<h3>Forced by what it just learned: ${setTo(v, f.lit > 0)}</h3>
             <p>${tag(f.clauseIndex)} is ${clauseHtml(c, vals)}. ${reason}</p>
-            <p class="aside">This is the learned clause doing its job. The solver can't walk back into the same conflict.</p>`;
+            <p class="aside">Without the learned clause, the solver could make the same combination of guesses again.</p>`;
         }
         return `<h3>Forced: ${setTo(v, f.lit > 0)}</h3>
           <p>${tag(f.clauseIndex)} is ${clauseHtml(c, vals)}. ${reason}</p>`;
@@ -118,7 +118,7 @@
         return `<h3 class="good">Learned ${tag(f.learnedIndex)}</h3>
           <p>${lit(f.uip, vals)} is the only one left from level ${f.level}. The new clause is ${clauseHtml(f.clause, vals)}.${dropped}</p>
           <p>Read it as a rule: ${f.clause.length === 1 ? `${rule} is impossible.` : `${rule} can't all happen at once.`}
-          It follows from the original clauses, so adding it doesn't change the answer. It just stops the solver from making this mistake again.</p>`;
+          It follows from the original clauses, so adding it doesn't change the answer. It just stops the solver from repeating this combination.</p>`;
       }
 
       case 'backjump': {
@@ -130,8 +130,8 @@
         return `<h3>Jump back to level ${f.to}</h3>
           <p>The new clause doesn't mention anything from level${skipped.length === 1 ? '' : 's'} ${andList(skipped)}, so ${skipped.length === 1 ? 'that guess' : 'those guesses'}
           had nothing to do with the conflict. ${skipped.length === 1 ? 'It gets' : 'They get'} thrown away too.</p>
-          <p class="aside">Plain backtracking would only undo level ${f.from} and then probably redo the same work.
-          Skipping levels like this is a big part of why CDCL is fast.</p>`;
+          <p class="aside">Plain backtracking (DPLL) would only undo level ${f.from} and try the other value there,
+          keeping guesses that had nothing to do with the problem.</p>`;
       }
 
       case 'sat': {
@@ -329,7 +329,7 @@
     renderGraph(f);
     renderAnalysis(state.i);
     renderClauses(f, vals);
-    $('play').textContent = state.timer ? 'pause' : 'play';
+    $('play').textContent = state.timer ? 'Pause' : 'Play';
   }
 
   function go(i) {
