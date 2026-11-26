@@ -6,13 +6,14 @@
   const MAX_VARS = 80;
   const MAX_CLAUSES = 400;
 
-  const state = { formula: null, trace: null, i: 0, timer: null, numInput: 0 };
+  const state = { formula: null, trace: null, i: 0, timer: null, numInput: 0, shown: -1 };
 
   // ------------------------------------------------------------------ text helpers
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const varName = (v) => esc(state.formula.names[v] || `x${v}`);
-  const litText = (l) => (l < 0 ? '¬' : '') + varName(Math.abs(l));
+  // Examples with a `say` function (like the party) read better as "no Bob" than "¬Bob".
+  const litText = (l) => (l < 0 ? (state.formula.say ? 'no ' : '¬') : '') + varName(Math.abs(l));
 
   function valueMap(frame) {
     const m = new Map();
@@ -27,8 +28,11 @@
   }
 
   const lit = (l, vals) => `<span class="lit ${litClass(l, vals)}">${litText(l)}</span>`;
-  // "x3 = false", coloured by the value.
-  const setTo = (v, b) => `<span class="lit ${b ? 't' : 'f'}">${varName(v)} = ${b}</span>`;
+  // "x3 = false" (or "Alice comes" when the example says how), coloured by the value.
+  const setTo = (v, b) => `<span class="lit ${b ? 't' : 'f'}">${
+    state.formula.say ? esc(state.formula.say(v, b)) : `${varName(v)} = ${b}`}</span>`;
+  const ruleText = (k) => (state.formula.rules && k < state.numInput ? state.formula.rules[k] : null);
+  const quote = (k) => (ruleText(k) ? `<p class="rule">${tag(k)} “${esc(ruleText(k))}”</p>` : '');
 
   function clauseHtml(lits, vals) {
     if (!lits.length) return '<span class="empty-clause">the empty clause</span>';
@@ -53,103 +57,126 @@
 
   function describe(f, vals) {
     const C = state.trace.clauses;
+    const now = (l) => setTo(Math.abs(l), vals.get(Math.abs(l)));
+    const symbols = (k) => `<p class="aside">In symbols, ${tag(k)} is ${clauseHtml(C[k].lits, vals)}.</p>`;
     switch (f.type) {
       case 'start':
         return `<h3>Before anything happens</h3>
-          <p>Nothing is set yet. There are ${count(state.formula.numVars, 'variable', 'variables')} and
-          ${count(state.numInput, 'clause', 'clauses')}. Press <kbd>→</kbd> to start.</p>`;
+          <p>Nothing is decided yet. There are ${count(state.formula.numVars, 'variable', 'variables')} and
+          ${count(state.numInput, 'rule', 'rules')}. Every rule is a list of options, and at least one option
+          in each rule has to end up true.</p>
+          <p class="aside">Press <b>Step →</b> (or the → key) to watch the solver work, or <b>Play</b> to let it run.</p>`;
 
       case 'decide': {
         const v = Math.abs(f.lit);
         const why = f.stats.conflicts === 0
-          ? 'Nothing has gone wrong yet, so it just takes the lowest-numbered variable that isn\'t set and tries false first.'
-          : 'It goes for a variable that keeps showing up in recent conflicts, and gives it the value it had last time.';
+          ? 'With nothing else to go on, it takes the first undecided variable and tries false.'
+          : 'It picks a variable that keeps showing up in recent trouble, and tries the value it had last time.';
         return `<h3>Guess: ${setTo(v, f.lit > 0)}</h3>
-          <p>Nothing is forced right now, so the solver has to guess. That starts level ${f.level}.</p>
-          <p class="aside">${why}</p>`;
+          <p>No rule is forcing anything right now, so the solver has to guess. If the guess turns out badly,
+          it can take it back later.</p>
+          <p class="aside">The solver is now ${count(f.level, 'guess', 'guesses')} deep, which it calls level ${f.level}.
+          This guess and everything it forces go in that row of the graph. ${why}</p>`;
       }
 
       case 'propagate': {
-        const c = C[f.clauseIndex].lits;
-        const v = Math.abs(f.lit);
-        const others = c.filter((l) => l !== f.lit).map((l) => lit(l, vals));
-        const reason = others.length
-          ? `${andList(others)} ${others.length === 1 ? 'is' : 'are'} already false, so ${lit(f.lit, vals)} is the only way left to satisfy it.`
-          : 'It only has one literal, so that literal has to be true.';
+        const k = f.clauseIndex;
+        const c = C[k].lits;
+        const known = c.filter((l) => l !== f.lit).map(now);
+        const because = known.length
+          ? `We already know ${andList(known)}, so the only way left to follow this rule is ${setTo(Math.abs(f.lit), f.lit > 0)}.`
+          : 'This rule has only one option, so that option has to be true.';
         if (f.asserting) {
-          return `<h3>Forced by what it just learned: ${setTo(v, f.lit > 0)}</h3>
-            <p>${tag(f.clauseIndex)} is ${clauseHtml(c, vals)}. ${reason}</p>
-            <p class="aside">Without the learned clause, the solver could make the same combination of guesses again.</p>`;
+          return `<h3>The new rule kicks in: ${setTo(Math.abs(f.lit), f.lit > 0)}</h3>
+            <p>${because}</p>
+            <p class="aside">This is why the solver learns rules: it can't walk back into the same dead end.</p>`;
         }
-        return `<h3>Forced: ${setTo(v, f.lit > 0)}</h3>
-          <p>${tag(f.clauseIndex)} is ${clauseHtml(c, vals)}. ${reason}</p>`;
+        return `<h3>Forced: ${setTo(Math.abs(f.lit), f.lit > 0)}</h3>
+          ${quote(k)}
+          <p>${because} No guessing needed.</p>
+          ${ruleText(k) ? '' : symbols(k)}`;
       }
 
-      case 'conflict':
-        return `<h3 class="bad">Conflict</h3>
-          <p>${tag(f.conflict)} is ${clauseHtml(C[f.conflict].lits, vals)}, and every literal in it is now false.
-          ${f.level === 0
-            ? 'And this happened before any guesses were made.'
-            : 'At least one guess was bad. The next few steps work out which ones.'}</p>`;
+      case 'conflict': {
+        const k = f.conflict;
+        return `<h3 class="bad">A rule is broken</h3>
+          ${quote(k)}
+          <p>Right now ${andList(C[k].lits.map(now))}, so ${ruleText(k) ? 'this rule' : `rule ${tag(k)}`} can't be
+          followed: every option in it has been ruled out.</p>
+          <p class="aside">${f.level === 0
+            ? 'This happened without any guesses, so there is nothing to take back.'
+            : 'At least one guess was wrong. Instead of just undoing the last one, the solver first works out which guesses are really to blame.'}</p>
+          ${ruleText(k) ? '' : symbols(k)}`;
+      }
 
       case 'analyze': {
         const k = f.clause.filter((l) => levelOf(f, l) === f.level).length;
-        return `<h3>Why did that happen?</h3>
-          <p>Start from the broken clause ${clauseHtml(f.clause, vals)}. ${k} of its literals were set at level ${f.level},
-          after the latest guess. Keep swapping those out for whatever forced them, until only one from level ${f.level} is left.</p>`;
+        return `<h3>Working out what went wrong</h3>
+          <p>The solver traces the problem backwards. For each fact involved, it asks "why was this set?" and
+          replaces it with the reasons behind it. It stops when the blame points at a single fact from the latest guess.</p>
+          <p class="aside">It starts from the broken rule, ${clauseHtml(f.clause, vals)}. ${k} of those facts come from the
+          latest guess (level ${f.level}).</p>`;
       }
 
       case 'resolve': {
         const s = f.steps[f.steps.length - 1];
         const k = f.clause.filter((l) => levelOf(f, l) === f.level).length;
-        return `<h3>Swap out ${varName(s.on)}</h3>
-          <p>${setTo(s.on, vals.get(s.on))} was forced by ${tag(s.with)} ${clauseHtml(C[s.with].lits, vals)}.
-          Merge that clause into the current one and drop ${varName(s.on)} (this step is called <i>resolution</i>):</p>
-          <p>${clauseHtml(s.result, vals)}</p>
-          <p class="aside">${k === 1 ? `Only one literal from level ${f.level} left, so this is where it stops.` : `Still ${k} from level ${f.level}.`}</p>`;
+        const rt = ruleText(s.with);
+        return `<h3>Tracing back: ${setTo(s.on, vals.get(s.on))}</h3>
+          <p>That only happened because of rule ${tag(s.with)}${rt ? ` (“${esc(rt)}”)` : ''}. So instead of blaming it,
+          blame the things that forced it.</p>
+          <p class="aside">Combining the two rules and dropping ${varName(s.on)} gives ${clauseHtml(s.result, vals)}.
+          This step is called <i>resolution</i>. ${k === 1
+            ? 'Now only one fact from the latest guess is left, so the search for the cause stops here.'
+            : `Still ${k} facts from the latest guess, so keep going.`}</p>`;
       }
 
       case 'learn': {
-        const rule = andList(f.clause.map((l) => setTo(Math.abs(l), l < 0)));
+        const parts = f.clause.map((l) => setTo(Math.abs(l), l < 0));
+        const sentence = parts.length === 1 ? `${parts[0]} is impossible`
+          : parts.length === 2 ? `${parts[0]} and ${parts[1]} can't both happen`
+          : `${andList(parts)} can't all happen at once`;
         const n = f.dropped.length;
         const dropped = n
-          ? ` (${andList(f.dropped.map((l) => lit(l, vals)))} ${n === 1 ? 'was' : 'were'} left out because ${n === 1 ? 'it was' : 'they were'} forced before any guess, so ${n === 1 ? 'it' : 'they'} can never change.)`
+          ? ` ${andList(f.dropped.map((l) => lit(l, vals)))} ${n === 1 ? 'was' : 'were'} left out because ${n === 1 ? 'it was' : 'they were'} settled before any guess.`
           : '';
-        return `<h3 class="good">Learned ${tag(f.learnedIndex)}</h3>
-          <p>${lit(f.uip, vals)} is the only one left from level ${f.level}. The new clause is ${clauseHtml(f.clause, vals)}.${dropped}</p>
-          <p>Read it as a rule: ${f.clause.length === 1 ? `${rule} is impossible.` : `${rule} can't all happen at once.`}
-          It follows from the original clauses, so adding it doesn't change the answer. It just stops the solver from repeating this combination.</p>`;
+        return `<h3 class="good">Learned a new rule</h3>
+          <p>It all comes down to this: <b>${sentence}</b>. That follows from the original rules, so the solver writes it
+          down as ${tag(f.learnedIndex)} and will never try that combination again.</p>
+          <p class="aside">In symbols, ${clauseHtml(f.clause, vals)}. The one fact left from the latest guess,
+          ${lit(f.uip, vals)}, is called the <i>first UIP</i>.${dropped}</p>`;
       }
 
       case 'backjump': {
         const skipped = [];
         for (let L = f.to + 1; L < f.from; L++) skipped.push(String(L));
         if (!skipped.length) {
-          return `<h3>Back to level ${f.to}</h3><p>Undo everything from level ${f.from} and carry on with the new clause.</p>`;
+          return `<h3>Take back the last guess</h3>
+            <p>Undo the latest guess (level ${f.from}) and everything that followed from it. The new rule will now push the solver a different way.</p>`;
         }
         return `<h3>Jump back to level ${f.to}</h3>
-          <p>The new clause doesn't mention anything from level${skipped.length === 1 ? '' : 's'} ${andList(skipped)}, so ${skipped.length === 1 ? 'that guess' : 'those guesses'}
-          had nothing to do with the conflict. ${skipped.length === 1 ? 'It gets' : 'They get'} thrown away too.</p>
-          <p class="aside">Plain backtracking (DPLL) would only undo level ${f.from} and try the other value there,
-          keeping guesses that had nothing to do with the problem.</p>`;
+          <p>The new rule doesn't involve anything from level${skipped.length === 1 ? '' : 's'}
+          ${andList(skipped)}, so ${skipped.length === 1 ? 'that guess wasn\'t' : 'those guesses weren\'t'} to blame. The solver
+          undoes everything back to level ${f.to} in one go, where the new rule takes effect.</p>
+          <p class="aside">A simpler solver (DPLL) would only undo the latest guess, and could waste a long time
+          exploring around guesses that had nothing to do with the problem.</p>`;
       }
 
       case 'sat': {
-        const trues = Object.entries(f.model).filter(([, b]) => b).map(([v]) => `<span class="lit t">${varName(Number(v))}</span>`);
-        return `<h3 class="good">Solved</h3>
-          <p>Every variable has a value and every clause has at least one true literal.
-          The true ones are ${trues.length ? andList(trues) : '(none: everything is false)'}.</p>`;
+        const vars = Object.keys(f.model).map(Number);
+        const list = state.formula.say
+          ? andList(vars.map((v) => setTo(v, f.model[v])))
+          : (vars.filter((v) => f.model[v]).map((v) => `<span class="lit t">${varName(v)}</span>`).join(', ') || 'none of them');
+        return `<h3 class="good">Solved!</h3>
+          <p>Every rule is followed. ${state.formula.say ? `The answer: ${list}.` : `The variables that are true: ${list}.`}</p>`;
       }
 
       case 'unsat':
-        if (f.emptyInput) return `<h3 class="bad">No solution</h3><p>The formula contains an empty clause, which can never be true.</p>`;
-        if (f.stats.learned === 0) {
-          return `<h3 class="bad">No solution</h3>
-            <p>Just following the forced values leads to a contradiction, with no guesses involved. So nothing can satisfy this formula.</p>`;
-        }
+        if (f.emptyInput) return `<h3 class="bad">No solution</h3><p>The formula contains an empty rule, which can never be followed.</p>`;
         return `<h3 class="bad">No solution</h3>
-          <p>This conflict happened with no guesses left to undo. Every learned clause followed from the original ones,
-          so the formula really has no solution. The ${f.stats.learned} learned clauses are, together, a proof of that.</p>`;
+          <p>A rule broke with no guesses left to take back. ${f.stats.learned === 0
+            ? 'It came straight from the rules themselves, with no guessing at all.'
+            : `Every learned rule follows from the original ones, so this proves there is no way to follow all of them at once. The ${f.stats.learned} learned rules are the proof.`}</p>`;
 
       case 'limit':
         return `<h3>Stopped</h3><p>This one goes on too long to replay. Try the command-line solver.</p>`;
@@ -162,15 +189,26 @@
 
   const NODE_W = 84, NODE_H = 28, COL = 104, ROW = 74, LEFT = 82, TOP = 22;
 
-  function renderGraph(f) {
-    const svg = $('graph');
-    const C = state.trace.clauses;
+  function layout(f) {
     const nodes = new Map();
     const perLevel = [];
     for (const t of f.trail) {
       const k = (perLevel[t.level] = (perLevel[t.level] || 0) + 1) - 1;
       nodes.set(Math.abs(t.lit), { ...t, x: LEFT + k * COL + NODE_W / 2, y: TOP + t.level * ROW + NODE_H / 2 });
     }
+    return { nodes, perLevel };
+  }
+
+  // `prev` is the frame shown just before this one (stepping forward), or null.
+  // New nodes pop in and their arrows draw themselves; nodes undone by a backjump fade out.
+  function renderGraph(f, prev) {
+    const svg = $('graph');
+    const C = state.trace.clauses;
+    const { nodes, perLevel } = layout(f);
+    const before = prev ? layout(prev).nodes : null;
+    const entering = new Set(before ? [...nodes.keys()].filter((v) => !before.has(v)) : []);
+    const leaving = before ? [...before.values()].filter((nd) => !nodes.has(Math.abs(nd.lit))) : [];
+
     const showConflict = ['conflict', 'analyze', 'resolve', 'learn', 'unsat'].includes(f.type) && f.conflict !== undefined;
     const kappa = showConflict
       ? { x: LEFT + (perLevel[f.level] || 0) * COL + NODE_W / 2, y: TOP + f.level * ROW + NODE_H / 2 }
@@ -181,9 +219,9 @@
     const resolved = new Set(analyzing && f.steps ? f.steps.map((s) => s.on) : []);
     const uip = f.type === 'learn' ? Math.abs(f.uip) : 0;
 
-    const levels = f.level + 1;
-    const maxCols = Math.max(1, ...perLevel.map((x) => x || 0)) + (kappa ? 1 : 0);
-    const width = LEFT + maxCols * COL + 20;
+    const levels = Math.max(f.level, ...leaving.map((nd) => nd.level)) + 1;
+    const cols = Math.max(1, ...perLevel.map((x) => x || 0), ...(before ? layout(prev).perLevel.map((x) => x || 0) : []));
+    const width = LEFT + (cols + (kappa ? 1 : 0)) * COL + 20;
     const height = TOP + levels * ROW;
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.setAttribute('width', width);
@@ -200,27 +238,34 @@
       parts.push(`<text class="lane-label" x="10" y="${y + 4}">level ${L}</text>`);
     }
 
-    const edge = (a, b, bad, title) => {
+    const edge = (a, b, cls, title) => {
       const right = b.x > a.x + 1;
       const sx = a.x + (right ? NODE_W / 2 : 0);
       const sy = a.y + (right ? 0 : NODE_H / 2);
       const tx = b.x - NODE_W / 2 - 2, ty = b.y;
       const dx = Math.max(30, (tx - sx) / 2);
-      return `<path class="edge ${bad ? 'bad' : ''}" d="M${sx},${sy} C${sx + dx},${sy} ${tx - dx},${ty} ${tx},${ty}"
-        marker-end="url(#${bad ? 'arrow-bad' : 'arrow'})"><title>${title}</title></path>`;
+      return `<path class="edge ${cls}" pathLength="1" d="M${sx},${sy} C${sx + dx},${sy} ${tx - dx},${ty} ${tx},${ty}"
+        marker-end="url(#${cls.includes('bad') ? 'arrow-bad' : 'arrow'})"><title>${title}</title></path>`;
     };
+
+    const node = (nd, cls, label, title) => `<g class="${cls}" transform="translate(${nd.x - NODE_W / 2},${nd.y - NODE_H / 2})">
+        <title>${title}</title><g class="pop">
+        <rect width="${NODE_W}" height="${NODE_H}" rx="4"/>
+        <text x="${NODE_W / 2}" y="${NODE_H / 2 + 4}">${label}</text></g></g>`;
+
+    for (const nd of leaving) parts.push(node(nd, 'node leave', litText(nd.lit), 'undone'));
 
     for (const [v, nd] of nodes) {
       if (nd.reason < 0) continue;
       for (const l of C[nd.reason].lits) {
         const src = nodes.get(Math.abs(l));
-        if (Math.abs(l) !== v && src) parts.push(edge(src, nd, false, label(nd.reason)));
+        if (Math.abs(l) !== v && src) parts.push(edge(src, nd, entering.has(v) ? 'draw' : '', label(nd.reason)));
       }
     }
     if (kappa) {
       for (const l of C[f.conflict].lits) {
         const src = nodes.get(Math.abs(l));
-        if (src) parts.push(edge(src, kappa, true, `${label(f.conflict)} is broken`));
+        if (src) parts.push(edge(src, kappa, f.type === 'conflict' ? 'bad draw' : 'bad', `${label(f.conflict)} is broken`));
       }
     }
 
@@ -229,19 +274,15 @@
       if (cut.has(v)) cls.push('cut');
       if (resolved.has(v) && !cut.has(v)) cls.push('resolved');
       if (v === uip) cls.push('uip');
-      const why = nd.reason < 0 ? `guessed at level ${nd.level}` : `forced by ${label(nd.reason)}`;
-      parts.push(`<g class="${cls.join(' ')}" transform="translate(${nd.x - NODE_W / 2},${nd.y - NODE_H / 2})">
-        <title>${litText(nd.lit)}: ${why}</title>
-        <rect width="${NODE_W}" height="${NODE_H}" rx="4"/>
-        <text x="${NODE_W / 2}" y="${NODE_H / 2 + 4}">${litText(nd.lit)}</text></g>`);
+      if (entering.has(v)) cls.push('enter');
+      const why = nd.reason < 0 ? `a guess (level ${nd.level})` : `forced by ${label(nd.reason)}${ruleText(nd.reason) ? `: “${ruleText(nd.reason)}”` : ''}`;
+      parts.push(node(nd, cls.join(' '), litText(nd.lit), esc(`${litText(nd.lit)}: ${why}`)));
     }
     if (kappa) {
-      parts.push(`<g class="node kappa" transform="translate(${kappa.x - NODE_W / 2},${kappa.y - NODE_H / 2})">
-        <title>${label(f.conflict)} is broken</title>
-        <rect width="${NODE_W}" height="${NODE_H}" rx="4"/><text x="${NODE_W / 2}" y="${NODE_H / 2 + 4}">✗ ${label(f.conflict)}</text></g>`);
+      parts.push(node(kappa, `node kappa${f.type === 'conflict' ? ' enter shake' : ''}`, `✗ ${label(f.conflict)}`, `${label(f.conflict)} is broken`));
     }
     if (!f.trail.length && !kappa) {
-      parts.push(`<text class="lane-label" x="${LEFT}" y="${TOP + NODE_H / 2 + 4}">nothing set yet</text>`);
+      parts.push(`<text class="lane-label" x="${LEFT}" y="${TOP + NODE_H / 2 + 4}">nothing decided yet</text>`);
     }
     svg.innerHTML = parts.join('');
 
@@ -264,17 +305,17 @@
     const f = j >= 0 ? frames[j] : null;
     const box = $('analysis');
     if (!f || f.conflict === undefined) {
-      box.innerHTML = '<p class="empty">Nothing yet. When a clause breaks, the steps for figuring out why will show up here.</p>';
+      box.innerHTML = '<p class="empty">Nothing yet. When a rule breaks, the steps the solver takes to figure out why will show up here.</p>';
       return;
     }
     const C = state.trace.clauses;
-    const rows = [`<li><span class="what">broken clause</span>${tag(f.conflict)} ${clauseHtml(C[f.conflict].lits)}</li>`];
+    const rows = [`<li><span class="what">the broken rule</span>${tag(f.conflict)} ${clauseHtml(C[f.conflict].lits)}</li>`];
     for (const s of f.steps || []) {
-      rows.push(`<li><span class="what">swap out ${varName(s.on)} using ${label(s.with)}</span>${tag(s.with)} ${clauseHtml(C[s.with].lits)}
+      rows.push(`<li><span class="what">why ${litText(s.on * (C[s.with].lits.includes(s.on) ? 1 : -1))}? because of ${label(s.with)}</span>${tag(s.with)} ${clauseHtml(C[s.with].lits)}
         <span class="then">→ ${clauseHtml(s.result)}</span></li>`);
     }
     if (f.type === 'learn') {
-      rows.push(`<li class="learned-row"><span class="what">learned</span>${tag(f.learnedIndex)} ${clauseHtml(f.clause)}
+      rows.push(`<li class="learned-row"><span class="what">new rule learned</span>${tag(f.learnedIndex)} ${clauseHtml(f.clause)}
         <span class="then caption">then jump back to level ${f.bt}</span></li>`);
     }
     box.innerHTML = `<ol class="derivation">${rows.join('')}</ol>`;
@@ -282,7 +323,18 @@
 
   // ------------------------------------------------------------------ clause list
 
-  function renderClauses(f, vals) {
+  function clauseStatus(lits, vals) {
+    let free = 0;
+    for (const l of lits) {
+      const c = litClass(l, vals);
+      if (c === 't') return 'sat';
+      if (c === 'u') free++;
+    }
+    return free === 0 ? 'conflict' : free === 1 ? 'unit' : 'open';
+  }
+
+  function renderClauses(f, vals, prev) {
+    const prevVals = prev ? valueMap(prev) : null;
     const C = state.trace.clauses;
     const hideSat = $('hide-sat').checked;
     const focus = new Set([f.clauseIndex, f.conflict, f.with, f.learnedIndex].filter((x) => x !== undefined));
@@ -293,16 +345,12 @@
     const out = [];
     for (const k of order) {
       const lits = C[k].lits;
-      let free = 0, sat = false;
-      for (const l of lits) {
-        const c = litClass(l, vals);
-        if (c === 't') sat = true;
-        if (c === 'u') free++;
-      }
-      const status = sat ? 'sat' : free === 0 ? 'conflict' : free === 1 ? 'unit' : 'open';
-      if (hideSat && sat && !focus.has(k)) continue;
-      const title = { sat: 'already satisfied', unit: 'one literal left, so it will be forced', conflict: 'broken: every literal is false', open: '' }[status];
-      out.push(`<span class="cl ${status} ${focus.has(k) ? 'focus' : ''} ${k >= state.numInput ? 'is-learned' : ''}" title="${title}">
+      const status = clauseStatus(lits, vals);
+      if (hideSat && status === 'sat' && !focus.has(k)) continue;
+      const changed = prev && (k >= prev.numClauses || clauseStatus(lits, prevVals) !== status);
+      const title = (ruleText(k) ? `“${ruleText(k)}” ` : '')
+        + { sat: '(already followed)', unit: '(one option left, so it will be forced)', conflict: '(broken: every option is ruled out)', open: '' }[status];
+      out.push(`<span class="cl ${status} ${focus.has(k) ? 'focus' : ''} ${k >= state.numInput ? 'is-learned' : ''} ${changed ? 'flash' : ''}" title="${esc(title)}">
         ${tag(k)}${lits.map((l) => lit(l, vals)).join('<span class="or">∨</span>')}</span>`);
     }
     $('clauses').innerHTML = out.join('') || '<p class="caption">Every clause is satisfied.</p>';
@@ -323,12 +371,20 @@
       count(s.conflicts, 'conflict', 'conflicts'),
       `${s.learned} learned`,
     ].join(' · ');
-    $('narrative').innerHTML = describe(f, vals);
+    const prev = state.shown === state.i - 1 ? frames[state.i - 1] : null;
+    const text = $('narrative');
+    text.innerHTML = describe(f, vals);
+    if (state.shown !== state.i) {
+      text.classList.remove('fade');
+      void text.offsetWidth;  // restart the CSS animation
+      text.classList.add('fade');
+    }
     $('scrub').max = frames.length - 1;
     $('scrub').value = state.i;
-    renderGraph(f);
+    renderGraph(f, prev);
     renderAnalysis(state.i);
-    renderClauses(f, vals);
+    renderClauses(f, vals, prev);
+    state.shown = state.i;
     $('play').textContent = state.timer ? 'Pause' : 'Play';
   }
 
@@ -375,6 +431,7 @@
     state.numInput = formula.clauses.length;
     state.trace = CDCL.solveTrace(formula);
     state.i = 0;
+    state.shown = -1;
     if (source !== undefined) $('dimacs').value = source;
     render();
   }

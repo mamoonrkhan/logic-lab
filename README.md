@@ -11,6 +11,9 @@ coloring. This project is me following that thread.
 
 [![The visualizer, partway through working out a conflict](docs/visualizer.png)](https://mamoonrkhan.github.io/logic-lab/)
 
+New to this? The visualizer starts with a party-planning puzzle in plain English ("Alice or Bob has to
+come", "Frank, Dave and Eve can't all come") and explains every step without assuming any math.
+
 ## What SAT is
 
 You get a formula made of variables that can be true or false, written as a list of

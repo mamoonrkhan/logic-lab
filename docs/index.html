@@ -15,16 +15,26 @@
     </p>
 
     <p>
-      A SAT solver is given a list of clauses (each one is an "or" of some variables, possibly negated) and
-      looks for true/false values that make all of them true. This page goes through one run a step at a time.
-      The solver guesses a value, works out what that guess forces, and repeats. When some clause ends up with
-      every literal false, it works out which guesses caused that, adds a new clause that rules them out, and
-      backs up.
+      Say you're planning a party with some rules: <i>Alice or Bob has to come. If Bob comes, Dave comes too.
+      Alice and Carol can't both come.</i> Is there a guest list that follows every rule? With six friends you could
+      work it out on paper. With a million "friends", you need a program. That program is called a
+      <b>SAT solver</b>, and real ones handle problems like scheduling, checking computer chips for bugs, and
+      working out which software versions are compatible.
     </p>
+    <p>
+      This page replays a solver working through a puzzle, one step at a time. It does three things over and over:
+    </p>
+    <ol class="plain-steps">
+      <li><b>Guess</b> something it doesn't know yet ("say Alice stays home").</li>
+      <li><b>Follow the rules</b> to see what that forces ("then Bob has to come, so Dave has to come").</li>
+      <li>If a rule gets <b>broken</b>, figure out which guesses caused it, write down a new rule so it never makes
+        that mistake again, and back up.</li>
+    </ol>
+    <p>The first example is the party. Press <b>Play</b> and watch.</p>
 
     <div class="controls">
       <div class="row">
-        <label>Formula <select id="example"></select></label>
+        <label>Puzzle <select id="example"></select></label>
         <button id="edit-toggle" class="link" aria-expanded="false" aria-controls="editor">edit / paste your own</button>
       </div>
       <p id="blurb" class="note"></p>
@@ -72,31 +82,49 @@
 
     <div class="split">
       <section>
-        <h2>Implication graph</h2>
+        <h2>What the solver knows <span class="note">(the implication graph)</span></h2>
         <p class="note">
-          One row per decision level. Thick blue outline = a guess. Arrows go from the values that forced an
-          assignment. Yellow = in the clause being built during conflict analysis; dark yellow = the first UIP,
-          where analysis stops.
+          A map of what the solver knows and why. Each box is a fact. Boxes with a thick blue outline are guesses.
+          Each row is a level: how many guesses deep the solver was when it learned that fact. An arrow means "this fact helped force that one". When a rule breaks,
+          the boxes being blamed turn yellow.
         </p>
         <div class="graph-scroll"><svg id="graph" role="img" aria-label="Implication graph"></svg></div>
       </section>
       <section>
-        <h2>Conflict analysis</h2>
+        <h2>Figuring out what went wrong</h2>
         <div id="analysis"></div>
       </section>
     </div>
 
     <section>
       <div class="row between">
-        <h2>Clauses</h2>
-        <label class="note"><input type="checkbox" id="hide-sat"> hide satisfied clauses</label>
+        <h2>The rules (clauses)</h2>
+        <label class="note"><input type="checkbox" id="hide-sat"> hide rules that are already followed</label>
       </div>
       <p class="note">
-        <span class="lit t">green</span> true, <span class="lit f">red</span> false, <span class="lit u">grey</span> not set yet.
-        Learned clauses (L1, L2, …) are listed first.
+        Every rule, written as a list of options joined by ∨ ("or"). At least one option in each rule has to be
+        true. <span class="lit t">green</span> = true, <span class="lit f">red</span> = false,
+        <span class="lit u">grey</span> = not decided yet. Rules the solver learned (L1, L2, …) come first.
+        Hover over a rule to see it in words.
       </p>
       <div id="clauses" class="clause-grid"></div>
     </section>
+
+    <details class="glossary">
+      <summary>What do the words on this page mean?</summary>
+      <dl>
+        <dt>variable</dt><dd>Something that's either true or false, like "Alice comes to the party".</dd>
+        <dt>literal</dt><dd>A variable or its opposite: "Alice comes" or "Alice doesn't come" (written ¬Alice or "no Alice").</dd>
+        <dt>clause (rule)</dt><dd>A list of literals joined by "or". It's followed if at least one of them is true.</dd>
+        <dt>forced (unit propagation)</dt><dd>When every option in a rule is ruled out except one, that last one has to be true.</dd>
+        <dt>level</dt><dd>Which guess a fact came from. Facts on level 3 depend on the third guess.</dd>
+        <dt>conflict</dt><dd>A rule where every option has been ruled out. Some guess was wrong.</dd>
+        <dt>resolution</dt><dd>Combining two rules into a new one that follows from both. It's how the solver works out a learned rule.</dd>
+        <dt>learned clause</dt><dd>A new rule the solver figured out from a conflict. It always follows from the original rules.</dd>
+        <dt>backjump</dt><dd>Undoing several guesses at once, back to the last one that actually mattered.</dd>
+        <dt>SAT / UNSAT</dt><dd>Satisfiable (some assignment follows every rule) or unsatisfiable (none does).</dd>
+      </dl>
+    </details>
 
     <hr>
     <p class="note">

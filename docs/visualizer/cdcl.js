@@ -334,7 +334,31 @@
     return [vs, edges];
   };
 
+  // A small puzzle in plain words. `rules` gives each clause in English, and `say`
+  // describes an assignment ("Alice comes"), so the page can explain steps without symbols.
+  function party() {
+    const names = { 1: 'Alice', 2: 'Bob', 3: 'Carol', 4: 'Dave', 5: 'Eve', 6: 'Frank' };
+    return {
+      numVars: 6,
+      names,
+      clauses: [[1, 2], [-2, 4], [3, 6], [-6, 5], [-6, -4, -5], [-1, -3], [4, 5, 6]],
+      rules: [
+        'Alice or Bob has to come (or both).',
+        'If Bob comes, Dave comes too. They share a car.',
+        'Carol or Frank has to come, to bring the cake.',
+        'If Frank comes, Eve comes too.',
+        'Frank, Dave and Eve can\'t all come. They always argue.',
+        'Alice and Carol can\'t both come.',
+        'At least one of Dave, Eve and Frank has to come.',
+      ],
+      say: (v, value) => `${names[v]} ${value ? 'comes' : 'stays home'}`,
+    };
+  }
+
   const EXAMPLES = [
+    { id: 'party', title: 'Planning a party (start here)',
+      blurb: 'Six friends and seven rules about who can come. Each variable means "this person comes". Is there a guest list that follows every rule?',
+      make: party },
     { id: 'learn', title: 'A small random formula (no solution)',
       blurb: '10 variables and 45 clauses. I picked this one because it has a few good conflicts, including one that jumps back three levels.',
       make: () => random3Sat(10, 45, 54) },
@@ -356,7 +380,7 @@
       blurb: 'Paste it below and hit "Run this formula".', make: null },
   ];
 
-  const api = { parseDimacs, toDimacs, solveTrace, random3Sat, pigeonhole, queens, coloring, EXAMPLES };
+  const api = { parseDimacs, toDimacs, solveTrace, random3Sat, pigeonhole, queens, coloring, party, EXAMPLES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CDCL = api;
 })(typeof self !== 'undefined' ? self : this);
