@@ -335,23 +335,25 @@
   };
 
   const EXAMPLES = [
-    { id: 'learn', title: 'Clause learning and backjumping (random 3-SAT, UNSAT)',
-      blurb: 'Ten variables, 45 clauses. Watch conflicts produce learned clauses and multi-level backjumps.',
+    { id: 'learn', title: 'A small random formula (no solution)',
+      blurb: '10 variables and 45 clauses. I picked this one because it has a few good conflicts, including one that jumps back three levels.',
       make: () => random3Sat(10, 45, 54) },
-    { id: 'syllogism', title: 'Hypothetical syllogism: p→q, q→r, p, ¬r',
-      blurb: 'Unit propagation alone refutes it: no decisions needed.',
+    { id: 'syllogism', title: 'If p then q, if q then r, p, but not r',
+      blurb: 'The textbook argument from discrete math. No guessing needed: the clauses force everything.',
       make: syllogism },
-    { id: 'queens', title: '4-Queens (SAT)',
-      blurb: 'Variable Q2c means "a queen on row 2, column c".',
+    { id: 'queens', title: '4 queens on a 4×4 board',
+      blurb: 'Q2c means "there is a queen on row 2, column c".',
       make: () => queens(4) },
-    { id: 'wheel', title: 'Is the wheel W5 3-colorable? (UNSAT)',
-      blurb: 'A hub joined to a 5-cycle. The odd cycle needs 3 colors, so the hub has none left.',
+    { id: 'wheel', title: 'Color a wheel with 3 colors (impossible)',
+      blurb: 'A hub joined to all five corners of a pentagon. The pentagon already uses all 3 colors, so the hub has nothing left.',
       make: () => { const [v, e] = wheel(5); return coloring(v, e, ['R', 'G', 'B']); } },
-    { id: 'php', title: 'Pigeonhole: 4 pigeons, 3 holes (UNSAT)',
-      blurb: 'P2H3 means "pigeon 2 sits in hole 3". Small, but already needs many conflicts.',
+    { id: 'php', title: '4 pigeons, 3 holes (impossible)',
+      blurb: 'P2H3 means "pigeon 2 is in hole 3". Obvious to a person, surprisingly annoying for a solver.',
       make: () => pigeonhole(3) },
-    { id: 'random', title: 'Random 3-SAT…', blurb: 'Pick a size and a seed.', make: null },
-    { id: 'custom', title: 'Custom DIMACS…', blurb: 'Edit the formula below and press Solve.', make: null },
+    { id: 'random', title: 'Random 3-SAT',
+      blurb: 'Around 4.26 clauses per variable is where these get hardest.', make: null },
+    { id: 'custom', title: 'Your own formula',
+      blurb: 'Paste it below and hit "Run this formula".', make: null },
   ];
 
   const api = { parseDimacs, toDimacs, solveTrace, random3Sat, pigeonhole, queens, coloring, EXAMPLES };
