@@ -198,3 +198,61 @@ button.link { border: 0; background: none; color: var(--link); padding: 0; text-
   #graph .edge.draw { stroke-dashoffset: 0; }
   #graph .leave { display: none; }
 }
+
+/* ---------------------------------------------------------------- beginner story */
+
+.story { margin: 14px 0 8px; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px 16px; background: var(--box); }
+#story-scene { display: block; width: 100%; height: auto; max-height: 200px; }
+#story-scene .friend circle { fill: var(--unk-bg); stroke: var(--implied); stroke-width: 2; transition: fill .45s, stroke .45s; }
+#story-scene .friend .mark { font: 700 20px -apple-system, BlinkMacSystemFont, sans-serif; text-anchor: middle; fill: var(--muted); }
+#story-scene .friend .name { font: 600 14px -apple-system, BlinkMacSystemFont, sans-serif; text-anchor: middle; fill: var(--text); }
+#story-scene .friend .status { font: 12px -apple-system, BlinkMacSystemFont, sans-serif; text-anchor: middle; fill: var(--muted); }
+#story-scene .friend.in circle { fill: var(--true-bg); stroke: var(--true); }
+#story-scene .friend.in .mark { fill: var(--true); }
+#story-scene .friend.out circle { fill: var(--false-bg); stroke: var(--false); }
+#story-scene .friend.out .mark { fill: var(--false); }
+#story-scene .friend.clash circle { stroke: var(--conflict); stroke-width: 3.5; }
+#story-scene .friend.blamed circle { stroke: var(--cut-edge); stroke-width: 3.5; }
+#story-scene .tag rect { fill: var(--box); stroke: var(--line); }
+#story-scene .tag.guess rect { stroke: var(--decision); stroke-width: 1.5; }
+#story-scene .tag text { font: 11px -apple-system, BlinkMacSystemFont, sans-serif; text-anchor: middle; fill: var(--muted); }
+#story-scene .tag.guess text { fill: var(--decision); font-weight: 600; }
+#story-scene .body { transform-box: fill-box; transform-origin: center; }
+
+.story-body { min-height: 120px; margin-top: 6px; }
+.story-body .where { color: var(--muted); font-size: 13px; margin: 0; }
+#story-text h3 { font-size: 20px; margin: 2px 0 4px; }
+#story-text p { margin: 0; max-width: 760px; }
+#story-text .bad { color: var(--conflict); }
+#story-text .good { color: var(--true); }
+#story-text.fade { animation: fade-up .35s ease-out; }
+.story button.primary { background: var(--text); color: var(--box); border-color: var(--text); font-weight: 600; }
+.story button:disabled { opacity: .4; cursor: default; }
+
+.cards-title { font-size: 15px; margin: 16px 0 6px; }
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.card { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: var(--box); font-size: 14px; transition: background .3s, border-color .3s; }
+.card .num { display: block; font-size: 12px; font-weight: 600; color: var(--muted); }
+.card.used { border-color: var(--cut-edge); background: var(--cut); }
+.card.broken { border-color: var(--conflict); background: var(--false-bg); animation: card-shake .5s ease-in-out .15s; }
+.card.learned { border-style: dashed; border-color: var(--learned); background: var(--learned-bg); }
+.card.learned .num { color: var(--learned); }
+.card.learned.used { border-style: solid; }
+.card.new { animation: card-in .6s cubic-bezier(.2, 1.3, .4, 1); }
+@keyframes card-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+@keyframes card-in { from { opacity: 0; transform: translateY(-14px) scale(.9); } }
+
+/* A friend whose answer just changed pops; one whose answer was taken back shrinks first. */
+#story-scene .arrive .body { animation: pop-in .45s cubic-bezier(.2, 1.4, .4, 1); }
+#story-scene .reset .body { animation: reset .6s ease-out; }
+@keyframes reset { 0% { transform: scale(1); opacity: 1; } 40% { transform: scale(.7); opacity: .3; } 100% { transform: scale(1); opacity: 1; } }
+#story-scene .clash .body { animation: shake .45s ease-in-out .1s; }
+#story-scene .tag { animation: fade-in .35s ease-out; }
+@keyframes fade-in { from { opacity: 0; } }
+/* The end: everyone who's coming does a little hop, one after another. */
+#story-scene .party.in .body { animation: hop .6s ease-in-out calc(var(--i) * 90ms) 2; }
+@keyframes hop { 50% { transform: translateY(-10px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  #story-scene *, .card { animation: none !important; transition: none !important; }
+}

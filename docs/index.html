@@ -30,7 +30,30 @@
       <li>If a rule gets <b>broken</b>, figure out which guesses caused it, write down a new rule so it never makes
         that mistake again, and back up.</li>
     </ol>
-    <p>The first example is the party. Press <b>Play</b> and watch.</p>
+    <p>Start with the story below. It's the party puzzle, told in pictures, with no math needed.</p>
+
+    <h2>The party, as a story</h2>
+    <figure class="story">
+      <svg id="story-scene" viewBox="0 0 660 150" role="img" aria-label="Six friends, each coming, staying home, or not decided yet">
+        <g id="story-friends"></g>
+      </svg>
+      <div class="story-body" aria-live="polite">
+        <p class="where" id="story-count"></p>
+        <div id="story-text"></div>
+      </div>
+      <div class="row">
+        <button id="story-prev">← Back</button>
+        <button id="story-next" class="primary">Next →</button>
+      </div>
+      <h3 class="cards-title">The rules</h3>
+      <ol id="story-cards" class="cards"></ol>
+    </figure>
+
+    <h2>The full replay</h2>
+    <p>
+      The same run in more detail, with the solver's own bookkeeping: the implication graph, each step of working
+      out a conflict, and every rule. You can also pick harder puzzles, or paste in your own.
+    </p>
 
     <div class="controls">
       <div class="row">
@@ -136,5 +159,6 @@
 
   <script src="visualizer/cdcl.js"></script>
   <script src="visualizer/app.js"></script>
+  <script src="visualizer/story.js"></script>
 </body>
 </html>

@@ -96,5 +96,22 @@ for (const ex of CDCL.EXAMPLES.filter((e) => e.make)) {
   if (trace.result !== cppResult(f)) fail(`example ${ex.id}: ${trace.result}`);
   checkFrames(trace, `example ${ex.id}`);
 }
+// The beginner story (docs/visualizer/story.js) narrates the party run in words, so the run
+// must keep exactly this shape. If the solver's heuristics change, update the story text too.
+{
+  const party = CDCL.party();
+  const t = CDCL.solveTrace(party);
+  const f = t.frames;
+  const summary = f.map((x) => x.type === 'decide' || x.type === 'propagate' ? `${x.type}:${x.lit}${x.clauseIndex !== undefined ? '@' + x.clauseIndex : ''}` : x.type);
+  const expected = ['start', 'decide:-1', 'propagate:2@0', 'propagate:4@1', 'decide:-3', 'propagate:6@2', 'propagate:5@3',
+    'conflict', 'analyze', 'resolve', 'learn', 'backjump', 'propagate:-6@7', 'propagate:3@2', 'decide:5', 'sat'];
+  if (JSON.stringify(summary) !== JSON.stringify(expected)) fail(`party run changed shape:\n  ${summary.join(' ')}`);
+  if (f[7].conflict !== 4) fail('party: expected rule 5 to break');
+  if (JSON.stringify([...f[10].clause].sort()) !== JSON.stringify([-4, -6])) fail(`party: expected to learn "Frank and Dave can't both come", got ${f[10].clause}`);
+  if (f[11].to !== 1) fail('party: expected to jump back to level 1');
+  const want = { 1: false, 2: true, 3: true, 4: true, 5: true, 6: false };
+  if (JSON.stringify(f[15].model) !== JSON.stringify(want)) fail(`party: unexpected guest list ${JSON.stringify(f[15].model)}`);
+}
+
 console.log(failures ? `${failures} FAILURE(S)` : 'all visualizer tests passed');
 process.exit(failures ? 1 : 0);

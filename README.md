@@ -11,8 +11,9 @@ coloring. This project is me following that thread.
 
 [![The visualizer, partway through working out a conflict](docs/visualizer.png)](https://mamoonrkhan.github.io/logic-lab/)
 
-New to this? The visualizer starts with a party-planning puzzle in plain English ("Alice or Bob has to
-come", "Frank, Dave and Eve can't all come") and explains every step without assuming any math.
+New to this? The page opens with a short picture story: six friends, seven party rules ("Alice or Bob has to
+come", "Frank, Dave and Eve can't all come"), and the solver figuring out a guest list one click at a time.
+No math needed. The full replay underneath shows the same run in detail.
 
 ## What SAT is
 
