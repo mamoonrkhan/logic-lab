@@ -95,7 +95,7 @@
         </label>
       </div>
       <input id="scrub" type="range" min="0" value="0" aria-label="Step">
-      <p class="note">Keyboard: ← and → to step, space to play, c for the next conflict.</p>
+      <p class="note keys-hint">Keyboard: ← and → to step, space to play, c for the next conflict.</p>
     </div>
 
     <div class="now" aria-live="polite">
@@ -111,6 +111,7 @@
           Each row is a level: how many guesses deep the solver was when it learned that fact. An arrow means "this fact helped force that one". When a rule breaks,
           the boxes being blamed turn yellow.
         </p>
+        <p class="note touch-hint">Swipe sideways inside the box to see the whole graph.</p>
         <div class="graph-scroll"><svg id="graph" role="img" aria-label="Implication graph"></svg></div>
       </section>
       <section>

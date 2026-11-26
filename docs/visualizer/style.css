@@ -256,3 +256,36 @@ button.link { border: 0; background: none; color: var(--link); padding: 0; text-
 @media (prefers-reduced-motion: reduce) {
   #story-scene *, .card { animation: none !important; transition: none !important; }
 }
+
+/* ---------------------------------------------------------------- phones and touch screens */
+
+select { max-width: 100%; }
+.row label { flex-wrap: wrap; max-width: 100%; }
+#example { min-width: 0; }
+.touch-hint { display: none; }
+
+@media (hover: none) {
+  .keys-hint { display: none; }
+  .touch-hint { display: block; }
+}
+@media (pointer: coarse) {
+  button { padding: 8px 14px; }
+  button.link { padding: 4px 0; }
+  .story .row button { min-width: 96px; }
+}
+@media (max-width: 560px) {
+  main { padding: 20px 14px 40px; }
+  h1 { font-size: 24px; }
+  /* iPhones zoom into any input with text smaller than 16px, so keep them at 16px. */
+  select, input[type=number], textarea { font-size: 16px; }
+  .controls { padding: 10px; }
+  .controls .row label { width: 100%; }
+  #example { flex: 1; width: 100%; }
+  .story { padding: 10px; }
+  #story-scene { max-height: none; }
+  #story-text h3 { font-size: 18px; }
+  #narrative h3 { font-size: 18px; }
+  .glossary dl { grid-template-columns: 1fr; gap: 0 0; }
+  .glossary dd { margin-bottom: 8px; }
+  .graph-scroll { max-height: 420px; }
+}

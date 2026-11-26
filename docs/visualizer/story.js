@@ -45,7 +45,11 @@
 
   // ---------------------------------------------------------------- drawing
 
-  const X = (v) => 60 + (v - 1) * 108;
+  // Wide screens: one row of six friends. Phones: two rows of three, so names stay readable.
+  const narrowQuery = window.matchMedia('(max-width: 560px)');
+  const layout = () => narrowQuery.matches
+    ? { box: '0 0 360 300', x: (v) => 60 + ((v - 1) % 3) * 120, dy: (v) => Math.floor((v - 1) / 3) * 150 }
+    : { box: '0 0 660 150', x: (v) => 60 + (v - 1) * 108, dy: () => 0 };
 
   function friends(frame, prevFrame, step) {
     const now = new Map(frame.trail.map((t) => [Math.abs(t.lit), t]));
@@ -54,8 +58,10 @@
     const blamed = step.frame === 10 && learned ? new Set(learned.lits.map(Math.abs)) : new Set();
     const broken = step.broken ? new Set(trace.clauses[frame.conflict].lits.map(Math.abs)) : new Set();
     const parts = [];
+    const { x: X, dy } = layout();
     for (let v = 1; v <= N; v++) {
       const t = now.get(v);
+      const y = dy(v);
       const state = !t ? 'unknown' : t.lit > 0 ? 'in' : 'out';
       const changed = before.get(v)?.lit !== t?.lit;
       const cls = ['friend', state];
@@ -68,12 +74,12 @@
       const tag = t ? (t.reason < 0 ? 'guess' : 'forced') : '';
       parts.push(`<g class="${cls.join(' ')}" style="--i:${v}">
         <g class="body">
-          <circle cx="${X(v)}" cy="74" r="25"/>
-          <text class="mark" x="${X(v)}" y="81">${mark}</text>
+          <circle cx="${X(v)}" cy="${74 + y}" r="25"/>
+          <text class="mark" x="${X(v)}" y="${81 + y}">${mark}</text>
         </g>
-        <text class="name" x="${X(v)}" y="122">${esc(formula.names[v])}</text>
-        <text class="status" x="${X(v)}" y="140">${state === 'in' ? 'coming' : state === 'out' ? 'staying home' : ''}</text>
-        ${tag ? `<g class="tag ${tag}"><rect x="${X(v) - 26}" y="22" width="52" height="18" rx="9"/><text x="${X(v)}" y="35">${tag === 'guess' ? '✎ guess' : 'forced'}</text></g>` : ''}
+        <text class="name" x="${X(v)}" y="${122 + y}">${esc(formula.names[v])}</text>
+        <text class="status" x="${X(v)}" y="${140 + y}">${state === 'in' ? 'coming' : state === 'out' ? 'staying home' : ''}</text>
+        ${tag ? `<g class="tag ${tag}"><rect x="${X(v) - 26}" y="${22 + y}" width="52" height="18" rx="9"/><text x="${X(v)}" y="${35 + y}">${tag === 'guess' ? '✎ guess' : 'forced'}</text></g>` : ''}
       </g>`);
     }
     return parts.join('');
@@ -103,6 +109,7 @@
     const step = STORY[i];
     const frame = trace.frames[step.frame];
     const prev = shown === i - 1 && i > 0 ? trace.frames[STORY[i - 1].frame] : null;
+    $('story-scene').setAttribute('viewBox', layout().box);
     $('story-friends').innerHTML = friends(frame, prev, step);
     $('story-cards').innerHTML = cards(frame, step);
     $('story-count').textContent = `${i + 1} of ${STORY.length}`;
@@ -117,6 +124,7 @@
   }
 
   $('story-next').addEventListener('click', () => { i = (i + 1) % STORY.length; render(); });
+  narrowQuery.addEventListener('change', () => { shown = -1; render(); });  // rotate phone / resize window
   $('story-prev').addEventListener('click', () => { if (i > 0) { i--; render(); } });
   render();
 
