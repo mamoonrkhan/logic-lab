@@ -90,7 +90,10 @@ def test_edge_cases(solver: Path) -> None:
     print(f"  {len(cases) + 1} cases")
 
 
-CONFIGS = [[], ["--reduce-interval=3"], ["--no-restarts"], ["--no-minimize"], ["--no-phase-saving"], ["--no-reduce"],
+# The second and third configs force the rarely-hit paths (clause deletion, Glucose
+# restarts and restart blocking) to run constantly, even on tiny formulas.
+CONFIGS = [[], ["--reduce-interval=3"], ["--lbd-window=2", "--block-after=3"],
+           ["--restarts=luby"], ["--no-restarts"], ["--no-minimize"], ["--no-phase-saving"], ["--no-reduce"],
            ["--no-restarts", "--no-minimize", "--no-phase-saving", "--no-reduce"]]
 
 
@@ -114,7 +117,7 @@ def test_fuzz(solver: Path, count: int, seed: int) -> None:
         check(brute.status == dpll.status, f"{tag}: brute {brute.status} vs dpll {dpll.status}")
         tally[brute.status] += 1
 
-        for config in (CONFIGS if i % 10 == 0 else CONFIGS[:2]):
+        for config in (CONFIGS if i % 10 == 0 else CONFIGS[:3]):
             res, proof = solve_with_proof(cnf, config, solver)
             name = " ".join(config) or "default"
             check(res.status == brute.status, f"{tag} [{name}]: cdcl {res.status}, brute force {brute.status}\n{cnf}")

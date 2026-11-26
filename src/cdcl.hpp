@@ -10,11 +10,18 @@ namespace logiclab {
 
 enum class Result { SAT, UNSAT, UNKNOWN };
 
+enum class RestartPolicy {
+    None,
+    Luby,     // restart after a fixed schedule of conflicts: 1,1,2,1,1,2,4,... x restart_base
+    Glucose,  // restart when recent learned clauses are worse than average (Audemard & Simon)
+};
+
 struct Stats {
     uint64_t decisions = 0;
     uint64_t propagations = 0;
     uint64_t conflicts = 0;
     uint64_t restarts = 0;
+    uint64_t blocked_restarts = 0;
     uint64_t learned = 0;
     uint64_t learned_units = 0;
     uint64_t deleted = 0;
@@ -26,8 +33,13 @@ struct Stats {
 struct SolverOptions {
     double var_decay = 0.95;       // VSIDS decay factor
     double clause_decay = 0.999;   // learned-clause activity decay
-    int restart_base = 100;        // conflicts per unit of the Luby sequence
-    bool restarts = true;
+    RestartPolicy restarts = RestartPolicy::Glucose;
+    int restart_base = 100;        // Luby: conflicts per unit of the sequence
+    int lbd_window = 50;           // Glucose: how many recent LBDs make up the "recent" average
+    double restart_margin = 0.8;   // Glucose: restart when recent avg * margin > overall avg
+    int trail_window = 5000;       // Glucose: recent trail sizes used for restart blocking
+    double block_margin = 1.4;     // Glucose: block a restart if the trail is this much above average
+    uint64_t block_after = 10000;  // Glucose: no blocking before this many conflicts
     bool phase_saving = true;
     bool minimize = true;          // learned-clause minimization
     bool reduce_db = true;         // periodically delete low-quality learned clauses
@@ -86,6 +98,27 @@ private:
         std::vector<int> pos_;
     };
 
+    // Fixed-size window over the most recent values, with a running sum.
+    class Window {
+    public:
+        void resize(int n) { buf_.assign(static_cast<size_t>(n > 0 ? n : 1), 0); clear(); }
+        void clear() { size_ = 0; head_ = 0; sum_ = 0; }
+        bool full() const { return size_ == buf_.size(); }
+        double average() const { return size_ ? double(sum_) / double(size_) : 0.0; }
+        void push(uint64_t x) {
+            if (full()) sum_ -= buf_[head_];
+            else ++size_;
+            buf_[head_] = x;
+            sum_ += x;
+            head_ = (head_ + 1) % buf_.size();
+        }
+
+    private:
+        std::vector<uint64_t> buf_;
+        size_t size_ = 0, head_ = 0;
+        uint64_t sum_ = 0;
+    };
+
     static constexpr int8_t kUndef = 0, kTrue = 1, kFalse = -1;
 
     int8_t value(int lit) const {
@@ -114,6 +147,7 @@ private:
     void backtrack(int level);
     int pick_branch();
     Result search(uint64_t conflict_budget);
+    bool restart_due(uint64_t conflicts_here, uint64_t budget);
     void reduce_db();
     bool locked(int cref) const;
 
@@ -150,6 +184,10 @@ private:
     std::vector<uint64_t> level_stamp_;
     uint64_t stamp_ = 0;
     uint64_t next_reduce_ = 0;
+
+    Window recent_lbd_;
+    Window recent_trail_;
+    uint64_t lbd_sum_ = 0;
 
     std::vector<bool> model_;
 };

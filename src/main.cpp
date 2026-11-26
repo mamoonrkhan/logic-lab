@@ -28,12 +28,16 @@ void usage() {
         "  --proof=FILE             write a DRAT proof of unsatisfiability (cdcl)\n"
         "  --stats                  print search statistics\n"
         "  --max-conflicts=N        give up after N conflicts (cdcl)\n"
-        "  --no-restarts            disable Luby restarts (cdcl)\n"
+        "  --restarts=glucose|luby|none\n"
+        "                           restart policy (cdcl, default: glucose)\n"
+        "  --no-restarts            same as --restarts=none\n"
         "  --no-minimize            disable learned-clause minimization (cdcl)\n"
         "  --no-phase-saving        disable phase saving (cdcl)\n"
         "  --no-reduce              never delete learned clauses (cdcl)\n"
         "  --reduce-interval=N      conflicts between learned-clause cleanups (cdcl, default 2000)\n"
         "  --no-model               do not print the satisfying assignment\n"
+        "  --lbd-window=N           glucose: recent learned clauses to average (default 50)\n"
+        "  --block-after=N          glucose: conflicts before restart blocking starts (default 10000)\n"
         "  -h, --help               show this help\n";
 }
 
@@ -76,7 +80,15 @@ int main(int argc, char** argv) {
         else if (starts_with(a, "--reduce-interval=", &rest)) opts.reduce_interval = std::max<uint64_t>(1, std::stoull(rest));
         else if (!std::strcmp(a, "--stats")) show_stats = true;
         else if (!std::strcmp(a, "--no-model")) show_model = false;
-        else if (!std::strcmp(a, "--no-restarts")) opts.restarts = false;
+        else if (!std::strcmp(a, "--no-restarts")) opts.restarts = RestartPolicy::None;
+        else if (starts_with(a, "--restarts=", &rest)) {
+            if (!std::strcmp(rest, "glucose")) opts.restarts = RestartPolicy::Glucose;
+            else if (!std::strcmp(rest, "luby")) opts.restarts = RestartPolicy::Luby;
+            else if (!std::strcmp(rest, "none")) opts.restarts = RestartPolicy::None;
+            else { std::cerr << "unknown restart policy: " << rest << "\n"; return 1; }
+        }
+        else if (starts_with(a, "--lbd-window=", &rest)) opts.lbd_window = std::max(1, std::stoi(rest));
+        else if (starts_with(a, "--block-after=", &rest)) opts.block_after = std::stoull(rest);
         else if (!std::strcmp(a, "--no-minimize")) opts.minimize = false;
         else if (!std::strcmp(a, "--no-phase-saving")) opts.phase_saving = false;
         else if (!std::strcmp(a, "--no-reduce")) opts.reduce_db = false;
@@ -151,7 +163,7 @@ int main(int argc, char** argv) {
             std::cout << "c decisions       " << stats.decisions << "\n"
                       << "c propagations    " << stats.propagations << "\n"
                       << "c conflicts       " << stats.conflicts << "\n"
-                      << "c restarts        " << stats.restarts << "\n"
+                      << "c restarts        " << stats.restarts << " (" << stats.blocked_restarts << " blocked)\n"
                       << "c learned         " << stats.learned << " (" << stats.learned_units << " units, avg "
                       << buf << " literals)\n"
                       << "c minimized lits  " << stats.minimized_literals << "\n"

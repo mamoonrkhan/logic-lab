@@ -87,17 +87,18 @@ These experiments are in [bench/](bench/). Full numbers are in
 [bench/RESULTS.md](bench/RESULTS.md).
 
 **Learning makes a huge difference.** I ran the full solver and a plain backtracking
-solver (DPLL) on the same random formulas. At 150 variables, DPLL takes about 7 seconds
-per formula and the full solver takes 15 ms. DPLL stops finishing at all around 175
-variables. The full solver gets to 250.
+solver (DPLL) on the same random formulas. At 150 variables, DPLL takes about 9 seconds
+per formula and the full solver takes 24 ms. DPLL stops finishing at all around 175
+variables. The full solver gets to 250 in about a second each.
 
 ![DPLL vs CDCL](docs/scaling.svg)
 
 **Random formulas have a "phase transition".** Make random 3-SAT formulas with
 different numbers of clauses per variable. With few clauses per variable they almost
 always have a solution, and with many they almost never do. The switch happens around
-4.26, and it gets sharper as the formulas get bigger. The hardest formulas sit right at the switch point: there are nearly 400×
-more conflicts there than at 3 clauses per variable. Nobody has proven exactly where
+4.26, and it gets sharper as the formulas get bigger. The hardest formulas sit right at
+the switch point: there are about 450× more conflicts there than at 3 clauses per
+variable. Nobody has proven exactly where
 the threshold is. It's still an open problem.
 
 ![phase transition](docs/phase-transition.svg)
@@ -107,8 +108,8 @@ the threshold is. It's still an open problem.
 something you can prove by hand in one line. Written as a SAT formula, though, Haken
 proved in 1985 that any resolution proof of it needs exponentially many steps. Since
 this solver's proofs are resolution proofs, that's a hard limit on how fast it can be,
-and the measurements show it. Every extra hole multiplies the work by about 4 to 10.
-11 pigeons in 10 holes takes 70 seconds, and 12 in 11 didn't finish in 10 minutes.
+and the measurements show it. Every extra hole multiplies the work by about 4 to 13.
+11 pigeons in 10 holes takes 53 seconds, and 12 in 11 didn't finish in 10 minutes.
 
 ![pigeonhole](docs/pigeonhole.svg)
 
@@ -116,16 +117,32 @@ and the measurements show it. Every extra hole multiplies the work by about 4 to
 
 | | random formulas (n=200) | pigeonhole (10 into 9) | Mycielski graph, 5 colors |
 |---|---:|---:|---:|
-| everything on | 2.4 s | 3.9 s | 7.9 s |
-| no restarts | 2.3 s | 0.65 s | 1.9 s |
-| no clause shrinking | 2.0 s | 7.2 s | 18.1 s |
-| no remembered phases | 2.9 s | 7.0 s | 15.5 s |
-| never forget learned clauses | 3.0 s | 18.3 s | 16.2 s |
+| everything on | 1.6 s | 1.8 s | 3.8 s |
+| Luby restarts instead of Glucose | 2.0 s | 4.0 s | 7.7 s |
+| no restarts at all | 3.4 s | 0.7 s | 1.9 s |
+| no clause shrinking | 1.9 s | 3.9 s | 8.6 s |
+| no remembered phases | 1.8 s | 1.8 s | 4.8 s |
+| never forget learned clauses | 3.0 s | 2.9 s | 12.8 s |
 
-Most of the features matter on the structured problems. Restarts made two of them 4
-to 6 times *slower*, which surprised me. The likely reason is that restarting throws
-away a proof that was almost done. Newer solvers decide when to restart based on how
-the search is going (Glucose-style restarts), and that's probably what I'll add next.
+**Smarter restarts.** My first version restarted on a fixed schedule (the Luby
+sequence), and on the pigeonhole and Mycielski problems that made it 4 to 6 times slower
+than not restarting at all. So I switched to the approach from the Glucose solver. Every
+learned clause gets a score, its LBD: the number of different guesses it depends on,
+where lower is better. The solver keeps the average score of the last 50 learned
+clauses. If that recent average gets clearly worse than the overall average, the
+current line of search isn't going anywhere, and it restarts. It also skips a planned
+restart when it has unusually many variables set, because it might be close to a
+solution.
+
+Compared with Luby, that's 2 to 2.5 times faster on the structured problems and on
+random formulas, and on the hardest random sizes it more than halved the time (2.6 s to
+1.1 s per formula at n=250). Not restarting at all is still fastest on pigeonhole and
+Mycielski. Those formulas are crafted to be hard in a very uniform way, so throwing away
+progress never pays off. I also tried 36 real-world instances from
+[SATLIB](https://www.cs.ubc.ca/~hoos/SATLIB/): hardware model checking, circuit testing
+and planning problems. They turned out to be too easy for this solver to show much
+difference; all of them take under 6 seconds with any policy. Full numbers are in
+[bench/RESULTS.md](bench/RESULTS.md).
 
 ## How I know the answers are right
 

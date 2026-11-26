@@ -5,6 +5,7 @@
   scaling   DPLL vs CDCL on random 3-SAT at the threshold as n grows
   php       pigeonhole formulas: exponential growth predicted by Haken's theorem
   ablation  what each CDCL feature is worth
+  restarts  Glucose vs Luby vs no restarts, including SATLIB industrial instances
 
 usage: bench.py [phase|scaling|php|ablation ...] [--quick]
 """
@@ -18,7 +19,9 @@ import random
 import statistics
 import subprocess
 import sys
+import tarfile
 import time
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -207,7 +210,8 @@ def ablation(quick: bool) -> str:
              ("pigeonhole PHP(10,9)", [pigeonhole.encode(9).dimacs()]),
              ("7x7 queens graph, 7 colors", [coloring.encode(coloring.queens_graph(7), 7).dimacs()]),
              ("Mycielski M6, 5 colors", [coloring.encode(coloring.mycielski_k(6), 5).dimacs()])]
-    configs = [("full solver", []), ("no restarts", ["--no-restarts"]), ("no minimization", ["--no-minimize"]),
+    configs = [("full solver", []), ("Luby restarts instead", ["--restarts=luby"]), ("no restarts", ["--no-restarts"]),
+               ("no minimization", ["--no-minimize"]),
                ("no phase saving", ["--no-phase-saving"]), ("no clause deletion", ["--no-reduce"])]
     limit = 30.0 if quick else 60.0
     header = "| configuration | " + " | ".join(name for name, _ in suite) + " |"
@@ -227,9 +231,64 @@ def ablation(quick: bool) -> str:
     return "\n".join(md) + "\n"
 
 
+SATLIB_URL = "https://www.cs.ubc.ca/~hoos/SATLIB/Benchmarks/SAT/"
+SATLIB_FAMILIES = {
+    "bounded model checking (bmc)": "BMC/bmc.tar.gz",
+    "circuit fault analysis (bf)": "DIMACS/BF/bf.tar.gz",
+    "circuit fault analysis (ssa)": "DIMACS/SSA/ssa.tar.gz",
+    "planning: logistics": "PLANNING/Logistics/logistics.tar.gz",
+    "planning: blocks world": "PLANNING/BlocksWorld/blocksworld.tar.gz",
+}
+
+
+def satlib_family(path: str) -> list[str]:
+    """Downloads (once) and returns the CNF files of a SATLIB benchmark family."""
+    dest = ROOT / "bench" / "satlib" / Path(path).name.replace(".tar.gz", "")
+    if not dest.exists():
+        dest.mkdir(parents=True)
+        archive = dest.with_suffix(".tar.gz")
+        print(f"  downloading {SATLIB_URL + path}")
+        urllib.request.urlretrieve(SATLIB_URL + path, archive)
+        with tarfile.open(archive) as tar:
+            members = [m for m in tar.getmembers() if m.isfile() and m.name.endswith(".cnf")]
+            for m in members:
+                m.name = Path(m.name).name  # flatten, and never write outside dest
+                tar.extract(m, dest)
+        archive.unlink()
+    return [f.read_text() for f in sorted(dest.glob("*.cnf"))]
+
+
+def restarts(quick: bool) -> str:
+    rng = random.Random(11)
+    n, count = (200, 8) if quick else (250, 16)
+    suite = [(f"random 3-SAT n={n} (×{count})",
+              [satlib.to_dimacs(n, satlib.random_ksat(n, round(4.26 * n), 3, rng)) for _ in range(count)]),
+             ("pigeonhole PHP(10,9)", [pigeonhole.encode(9).dimacs()]),
+             ("Mycielski M6, 5 colors", [coloring.encode(coloring.mycielski_k(6), 5).dimacs()])]
+    for name, path in SATLIB_FAMILIES.items():
+        cnfs = satlib_family(path)
+        suite.append((f"{name} (×{len(cnfs)})", cnfs))
+    policies = ["glucose", "luby", "none"]
+    limit = 60.0 if quick else 300.0
+    md = ["## Restart policies\n\nTotal wall time per family "
+          f"({limit:g}s limit per instance; a timeout counts as the full limit). "
+          "SATLIB instances: https://www.cs.ubc.ca/~hoos/SATLIB/\n",
+          "| family | Glucose | Luby | none |", "|---|---:|---:|---:|"]
+    for name, cnfs in suite:
+        cells = []
+        for pol in policies:
+            with ThreadPoolExecutor(WORKERS) as pool:
+                res = list(pool.map(lambda c: run(c, [f"--restarts={pol}"], limit), cnfs))
+            timeouts = sum(s == "TIMEOUT" for s, _, _ in res)
+            cells.append(f"{sum(t for _, t, _ in res):.2f}s" + (f" ({timeouts} timeout)" if timeouts else ""))
+        md.append(f"| {name} | " + " | ".join(cells) + " |")
+        print(f"  restarts {name}: {cells}")
+    return "\n".join(md) + "\n"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("experiments", nargs="*", default=["phase", "scaling", "php", "ablation"])
+    ap.add_argument("experiments", nargs="*", default=["phase", "scaling", "php", "ablation", "restarts"])
     ap.add_argument("--quick", action="store_true")
     args = ap.parse_args()
     DOCS.mkdir(exist_ok=True)
@@ -239,7 +298,8 @@ def main() -> int:
                 f"({platform.system()}), {time.strftime('%Y-%m-%d')}.\n"]
     for name in args.experiments:
         print(name)
-        sections.append({"phase": phase, "scaling": scaling, "php": php, "ablation": ablation}[name](args.quick))
+        sections.append({"phase": phase, "scaling": scaling, "php": php, "ablation": ablation,
+                         "restarts": restarts}[name](args.quick))
     RESULTS.write_text("\n".join(sections))
     print(f"wrote {RESULTS.relative_to(ROOT)}")
     return 0

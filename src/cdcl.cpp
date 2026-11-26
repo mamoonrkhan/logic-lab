@@ -105,6 +105,8 @@ Solver::Solver(const CNF& cnf, SolverOptions opts)
       next_reduce_(opts.reduce_interval) {
     heap_.reserve(n_);
     for (int v = 0; v < n_; ++v) heap_.insert(v);
+    recent_lbd_.resize(opts_.lbd_window);
+    recent_trail_.resize(opts_.trail_window);
     arena_.reserve(cnf.clauses.size() * 6);
     for (const auto& c : cnf.clauses) {
         add_input_clause(c);
@@ -428,8 +430,21 @@ Result Solver::search(uint64_t conflict_budget) {
             ++conflicts_here;
             if (decision_level() == 0) return Result::UNSAT;
 
+            // Restart blocking: an unusually long trail suggests the solver may be close
+            // to a full assignment, so don't throw it away just yet.
+            if (opts_.restarts == RestartPolicy::Glucose) {
+                recent_trail_.push(trail_.size());
+                if (stats_.conflicts > opts_.block_after && recent_lbd_.full() &&
+                    double(trail_.size()) > opts_.block_margin * recent_trail_.average()) {
+                    recent_lbd_.clear();
+                    ++stats_.blocked_restarts;
+                }
+            }
+
             int bt_level = 0, lbd = 0;
             analyze(confl, learnt, bt_level, lbd);
+            recent_lbd_.push(static_cast<uint64_t>(lbd));
+            lbd_sum_ += static_cast<uint64_t>(lbd);
             backtrack(bt_level);
             proof_add(learnt);
             ++stats_.learned;
@@ -453,7 +468,7 @@ Result Solver::search(uint64_t conflict_budget) {
                 return Result::UNKNOWN;
             }
         } else {
-            if (opts_.restarts && conflicts_here >= conflict_budget) {
+            if (restart_due(conflicts_here, conflict_budget)) {
                 backtrack(0);
                 return Result::UNKNOWN;
             }
@@ -468,6 +483,25 @@ Result Solver::search(uint64_t conflict_budget) {
             enqueue(next, -1);
         }
     }
+}
+
+// Low LBD means a learned clause ties together few decision levels, which tends to make
+// it useful. Glucose restarts when the clauses learned recently are noticeably worse
+// (higher LBD) than the average so far: the current branch of the search looks
+// unproductive. Luby ignores how the search is going and restarts on a fixed schedule.
+bool Solver::restart_due(uint64_t conflicts_here, uint64_t budget) {
+    switch (opts_.restarts) {
+        case RestartPolicy::None:
+            return false;
+        case RestartPolicy::Luby:
+            return conflicts_here >= budget;
+        case RestartPolicy::Glucose:
+            if (!recent_lbd_.full()) return false;
+            if (recent_lbd_.average() * opts_.restart_margin <= double(lbd_sum_) / double(stats_.conflicts)) return false;
+            recent_lbd_.clear();
+            return true;
+    }
+    return false;
 }
 
 Result Solver::solve() {
