@@ -11,11 +11,56 @@ coloring. This project is me following that thread.
 
 [![The visualizer, partway through working out a conflict](docs/visualizer.png)](https://mamoonrkhan.github.io/logic-lab/)
 
-New to this? The page opens with a short picture story: six friends, seven party rules ("Alice or Bob has to
-come", "Frank, Dave and Eve can't all come"), and the solver figuring out a guest list one click at a time.
-No math needed. The full replay underneath shows the same run in detail.
+## The short version (no math needed)
 
-## What SAT is
+Imagine planning a party where your friends come with conditions. *Alice or Bob has to come. If Bob comes,
+Dave comes too. Frank, Dave and Eve can't all come.* Is there a guest list that follows every rule?
+
+That's a **SAT problem**: a set of yes/no questions ("does Alice come?") plus rules about them, and you're
+looking for answers that follow every rule at once. With six friends you could work it out on paper. Real
+problems like this can have millions of yes/no questions:
+- "Is this wire on?", when checking a computer chip for bugs before it's manufactured
+- "Is this class in room 4 at 9am?", when building a school timetable
+- "Should this version of the package be installed?", when your computer installs software
+
+A program that solves these is called a **SAT solver**. This repo is one I built from scratch.
+
+It works roughly the way you'd solve the party puzzle yourself:
+
+1. **Guess** an answer to one of the questions ("say Alice stays home").
+2. **Follow the rules** to see what that guess forces ("then Bob has to come, so Dave has to come").
+3. If a rule gets **broken**, work out which guesses caused it, write down a new rule so the same mistake
+   can't happen again, and **back up**.
+4. Repeat until every rule is followed, or until it's clear that no answer can work.
+
+Step 3 is the clever part. Older solvers just undo the last guess and try the other option, which can take
+forever on big problems. Learning a new rule from every mistake is what lets modern solvers handle millions
+of questions.
+
+What's in the project:
+- the solver, written in C++
+- a [web page](https://mamoonrkhan.github.io/logic-lab/) that animates it, starting with the party as a
+  picture story
+- tools that turn puzzles like Sudoku into yes/no rules for the solver
+- experiments measuring how fast it is, including puzzles that are famously hard for every solver like it
+- tests that check every answer, including a separate program that double-checks the solver whenever it says
+  "this is impossible"
+
+If you just want to see it work, open the page and click through the party story. The rest of this README
+is the technical version.
+
+### Words you'll see below
+
+- **variable**: one yes/no question, like "does Alice come?"
+- **clause**: one rule, written as options joined by "or" ("Alice comes or Bob comes")
+- **satisfiable (SAT)** / **unsatisfiable (UNSAT)**: some set of answers follows every rule / no set of answers does
+- **CDCL** (conflict-driven clause learning): the guess, follow, learn and back up method described above
+- **DPLL**: the older method that guesses and backs up but doesn't learn
+- **conflict**: a moment when some rule can't be followed anymore
+- **learned clause**: a new rule the solver works out from a conflict
+- **proof**: a record of the solver's reasoning that another program can check, so you don't have to trust the solver
+
+## What SAT is, more precisely
 
 You get a formula made of variables that can be true or false, written as a list of
 clauses. Each clause is a few things joined by "or", for example `x1 or not x2 or x3`.
