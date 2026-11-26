@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: make
+      - name: Test
+        run: make test
+      - name: Build with AddressSanitizer + UBSan
+        run: make debug
+      - name: Fuzz the sanitizer build
+        run: python3 tests/run_tests.py --solver build/logiclab-debug --fuzz 500 --seed ${{ github.run_number }}
