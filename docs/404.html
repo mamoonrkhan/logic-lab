@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Page not found · logic-lab</title>
+  <script>
+    // Same theme choice as the rest of the site.
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem('theme'); } catch (e) {}
+      var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    })();
+  </script>
+  <!-- This page can be served at any missing path, so every link here starts from the site root. -->
+  <link rel="stylesheet" href="/logic-lab/visualizer/style.css">
+  <link rel="icon" href="/logic-lab/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/logic-lab/favicon-32.png" sizes="32x32" type="image/png">
+  <style>
+    main { max-width: 640px; padding-top: 72px; }
+    .code { font: 600 15px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); margin: 0; }
+    .cards { grid-template-columns: 1fr; margin: 20px 0; max-width: 420px; }
+    .home { display: inline-block; margin-top: 8px; padding: 8px 16px; border-radius: 6px; background: var(--text); color: var(--page); text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="code">404 · UNSAT</p>
+    <h1>This page doesn't exist</h1>
+    <p>The solver looked for a way to make both of these rules true at once. There isn't one.</p>
+    <ol class="cards">
+      <li class="card"><span class="num">Rule 1</span> This page exists.</li>
+      <li class="card broken"><span class="num">Rule 2</span> There's nothing at this address.</li>
+    </ol>
+    <p>Maybe the link has a typo, or the page moved.</p>
+    <p><a class="home" href="/logic-lab/">Go to the SAT solver page</a></p>
+    <p class="note">Or see the code on <a href="https://github.com/mamoonrkhan/logic-lab">GitHub</a>.</p>
+  </main>
+</body>
+</html>
